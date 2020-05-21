@@ -13,8 +13,8 @@ use tidb_query_datatype;
 use tidb_query_datatype::prelude::*;
 use tidb_query_shared_expr::conv::i64_to_usize;
 use tidb_query_shared_expr::string::{
-    encoded_size, line_wrap, validate_target_len_for_pad, BASE64_ENCODED_CHUNK_LENGTH,
-    BASE64_INPUT_CHUNK_LENGTH,
+    encoded_size, line_wrap, str_to_quote, validate_target_len_for_pad,
+    BASE64_ENCODED_CHUNK_LENGTH, BASE64_INPUT_CHUNK_LENGTH,
 };
 use tikv_util::try_opt_or;
 
@@ -963,24 +963,7 @@ impl ScalarFunc {
             self.children[0].eval_string(ctx, row),
             Some(Cow::Borrowed(b"NULL"))
         );
-        let mut result = Vec::<u8>::with_capacity(s.len() * 2 + 2);
-        result.push(b'\'');
-        for byte in s.iter() {
-            if *byte == b'\'' || *byte == b'\\' {
-                result.push(b'\\');
-                result.push(*byte)
-            } else if *byte == b'\0' {
-                result.push(b'\\');
-                result.push(b'0')
-            } else if *byte == 26u8 {
-                result.push(b'\\');
-                result.push(b'Z');
-            } else {
-                result.push(*byte)
-            }
-        }
-        result.push(b'\'');
-        Ok(Some(Cow::Owned(result)))
+        Ok(Some(Cow::Owned(str_to_quote(&s))))
     }
 
     // see https://dev.mysql.com/doc/refman/5.7/en/string-functions.html#function_ord

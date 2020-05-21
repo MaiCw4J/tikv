@@ -80,6 +80,27 @@ pub fn line_wrap(buf: &mut [u8], input_len: usize) {
     }
 }
 
+pub fn str_to_quote(bytes: &[u8]) -> Vec<u8> {
+    let mut result = Vec::<u8>::with_capacity(bytes.len() * 2 + 2);
+    result.push(b'\'');
+    for byte in bytes.iter() {
+        if *byte == b'\'' || *byte == b'\\' {
+            result.push(b'\\');
+            result.push(*byte)
+        } else if *byte == b'\0' {
+            result.push(b'\\');
+            result.push(b'0')
+        } else if *byte == 26u8 {
+            result.push(b'\\');
+            result.push(b'Z');
+        } else {
+            result.push(*byte)
+        }
+    }
+    result.push(b'\'');
+    result
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

@@ -6,7 +6,9 @@ use tidb_query_codegen::rpn_fn;
 use tidb_query_common::Result;
 use tidb_query_datatype::codec::data_type::*;
 use tidb_query_datatype::*;
-use tidb_query_shared_expr::string::{encoded_size, line_wrap, validate_target_len_for_pad};
+use tidb_query_shared_expr::string::{
+    encoded_size, line_wrap, str_to_quote, validate_target_len_for_pad,
+};
 
 const SPACE: u8 = 0o40u8;
 
@@ -489,6 +491,15 @@ pub fn to_base64(bs: &Option<Bytes>) -> Result<Option<Bytes>> {
             }
         }
         None => Ok(None),
+    }
+}
+
+#[rpn_fn]
+#[inline]
+pub fn quote(s: &Option<Bytes>) -> Result<Option<Bytes>> {
+    match s {
+        Some(bytes) => Ok(Some(str_to_quote(&bytes))),
+        None => Ok(Some(b"NULL".to_vec())),
     }
 }
 
@@ -1918,5 +1929,33 @@ mod tests {
                 .unwrap();
             assert_eq!(output, expected_output);
         }
+    }
+
+    #[test]
+    fn test_quote() {
+        let cases: Vec<(&str, &str)> = vec![
+            (r"Don\'t!", r"'Don\\\'t!'"),
+            (r"Don't", r"'Don\'t'"),
+            (r"\'", r"'\\\''"),
+            (r#"\""#, r#"'\\"'"#),
+            (r"萌萌哒(๑•ᴗ•๑)😊", r"'萌萌哒(๑•ᴗ•๑)😊'"),
+            (r"㍿㌍㍑㌫", r"'㍿㌍㍑㌫'"),
+            (str::from_utf8(&[26, 0]).unwrap(), r"'\Z\0'"),
+        ];
+
+        for (arg, expected_output) in cases {
+            let output = RpnFnScalarEvaluator::new()
+                .push_param(Some(arg.as_bytes().to_vec()))
+                .evaluate(ScalarFuncSig::Quote)
+                .unwrap();
+            assert_eq!(output, Some(expected_output.as_bytes().to_vec()));
+        }
+
+        // NULL CASE
+        let output = RpnFnScalarEvaluator::new()
+            .push_param(None::<Bytes>)
+            .evaluate(ScalarFuncSig::Quote)
+            .unwrap();
+        assert_eq!(output, Some(b"NULL".to_vec()));
     }
 }
